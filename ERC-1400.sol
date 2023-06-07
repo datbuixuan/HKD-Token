@@ -775,6 +775,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
 
 
     event ApprovalByPartition(bytes32 indexed partition, address indexed owner, address indexed spender, uint256 value);
+    event WithdrawTokenSuccess(address to, uint256 _value);
 
     /**
     * @dev Modifier to verify if token is issuable.
@@ -1302,6 +1303,26 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
         }
     }
 
+    //Token default partitions
+    /**
+    * @dev Get default partitions to transfer from.
+    * Function used for ERC20 retrocompatibility.
+    * For example, a security token may return the bytes32("unrestricted").
+    * @return Array of default partitions.
+    */
+    function getDefaultPartitions() external view returns (bytes32[] memory) {
+        return _defaultPartitions;
+    }
+
+    /**
+    * @dev Set default partitions to transfer from.
+    * Function used for ERC20 retrocompatibility.
+    * @param partitions partitions to use by default when not specified.
+    */
+    function setDefaultPartitions(bytes32[] calldata partitions) external onlyOwner {
+        _defaultPartitions = partitions;
+    }
+
 
     // Token controllers 
     /**
@@ -1477,15 +1498,16 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @dev Perform the token redemption.
     * @param operator The address performing the redemption.
     * @param from Token holder whose tokens will be redeemed.
+    * @param to Token receivier.
     * @param value Number of tokens to redeem.
     * @param data Information attached to the redemption.
     */
-    function _redeem(address operator, address from, uint256 value, bytes memory data)  internal 
+    function _redeem(address operator, address from, address to, uint256 value, bytes memory data)  internal 
     {  
         require(from != address(0), "56"); // 0x56	invalid sender
         require(balanceOf(from) >= value, "52"); // 0x52	insufficient balance
 
-        _update(from, address(this), value);
+        _update(from, to, value);
         emit Redeemed(operator, from, value, data);
     }
 
@@ -1502,7 +1524,12 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
         require(_balanceOfByPartition[from][fromPartition] >= value, "52"); // 0x52	insufficient balance
 
         _removeTokenFromPartition(from, fromPartition, value);
-        _redeem(operator, from, value, data);
+
+        address to = address(this);
+
+        _redeem(operator, from, to, value, data);
+        
+        _addTokenToPartition(to, fromPartition, value);
 
         emit RedeemedByPartition(fromPartition, operator, from, value, operatorData);
     }
@@ -1538,12 +1565,14 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
 
     /**
     // checked
-    * @dev Withdraw tokens from default partitions.
+    * @dev Withdraw tokens
     * @param to Token recipient.
     * @param value Number of tokens to transfer.
     */
     function withdrawToken(address to, uint256 value) external onlyOwner() {
-        _transfer(address(this), to, value);
+        _transferByDefaultPartitions(msg.sender, address(this), to, value, "");
+
+        emit WithdrawTokenSuccess(to, value);
     }
 }
 
