@@ -338,7 +338,7 @@ interface IERC1400Upgrate is IERC1643 {
     function redeem(uint256 _value, bytes calldata _data) external;
     function redeemFrom(address _tokenHolder, uint256 _value, bytes calldata _data) external;
     function redeemByPartition(bytes32 _partition, uint256 _value, bytes calldata _data) external;
-    function operatorRedeemByPartition(bytes32 _partition, address _tokenHolder, uint256 _value, bytes calldata _operatorData) external;
+    // function operatorRedeemByPartition(bytes32 _partition, address _tokenHolder, uint256 _value, bytes calldata _operatorData) external;
 
     // Transfer Validity
     // function canTransfer(address _to, uint256 _value, bytes _data) external view returns (byte, bytes32);
@@ -656,6 +656,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
      */
     function _mint(address account, uint256 amount) internal {
         require(account != address(0), "ERC20: mint to the zero address");
+
         _update(address(0), account, amount);
     }
 
@@ -732,11 +733,30 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     // Indicate whether the token can still be issued by the issuer or not anymore.
     bool internal _isIssuable;
 
+    // Addresses of Token Owner (Removed when redeem and statistic)
+    address[] internal _whiteListAddresses;
+    // Mapping from address to status.
+    mapping(address => bool) internal _isWhiteListAddresses;
+
+    // Addresses of Holder (Use to statistic)
+    address[] internal _holderAddresses;
+    // Mapping from address to status
+    mapping(address => bool) internal _isHolderAddresses;
+
     // Partition
     // List of partitions.
     bytes32[] internal _totalPartitions;
     // List of token default partitions (for ERC20 compatibility).
     bytes32[] internal _defaultPartitions;
+
+    // Payout Address when redeem 
+    address internal _payoutAddress;
+    // Payout time when redeem. This is UTC timestamp
+    uint256 internal _payoutTime;
+    // ERC 20 token will payout
+    address internal _payoutToken;
+    // Payout rate when redeem. Greater than or equal to 100.  
+    uint256 internal _payoutRate;
 
 
     // Mapping from partition to global balance of corresponding partition.
@@ -769,7 +789,6 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
 
     // Array of controllers. [GLOBAL - NOT TOKEN-HOLDER-SPECIFIC]
     address[] internal _controllers;
-
     // Mapping from operator to controller status. [GLOBAL - NOT TOKEN-HOLDER-SPECIFIC]
     mapping(address => bool) internal _isController;
 
@@ -793,7 +812,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
         _;
     }
 
-    constructor(string memory name, string memory symbol, address[] memory initialControllers, bytes32[] memory defaultPartitions)
+    constructor(string memory name, string memory symbol, address[] memory initialControllers,   bytes32[] memory defaultPartitions)
         ERC20(name, symbol) Ownable(msg.sender) {
 
         _setControllers(initialControllers);
@@ -1049,11 +1068,17 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
             toPartition = _getDestinationPartition(fromPartition, data);
         }
 
+        _addHolderAddress(to);
+
         _removeTokenFromPartition(from, fromPartition, value);
     
         _transfer(from, to, value);
     
         _addTokenToPartition(to, toPartition, value);
+
+        if(balanceOf(from) <= 0){
+            _removeHolderAddress(from);
+        }
 
         emit TransferByPartition(fromPartition, operator, from, to, value, data, operatorData);
 
@@ -1270,6 +1295,8 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     */
     function _issueByPartition(bytes32 toPartition, address operator, address to, uint256 value, bytes calldata data) internal
     {
+        _addHolderAddress(to);
+
         _mint(to, value);
 
         _addTokenToPartition(to, toPartition, value);
@@ -1303,6 +1330,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
         }
     }
 
+  
     //Token default partitions
     /**
     * @dev Get default partitions to transfer from.
@@ -1354,6 +1382,174 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     }
 
 
+    //Payout setting
+
+    function setPayoutSetting(address payoutAddress, uint256 payoutTime, address payoutToken, uint256 payoutRate) external onlyOwner{
+        _payoutAddress = payoutAddress;
+        _payoutTime = payoutTime;
+        _payoutToken = payoutToken;
+        _payoutRate = payoutRate;
+    }
+
+    /**
+    // checked
+    * @dev Get payout address.
+    * @return address of payout.
+    */
+    function getPayoutAddress() external view returns (address){
+        return _payoutAddress;
+    }
+
+    /**
+    // checked
+    * @dev Get payout time (UTC timestamp).
+    * @return timestamp of payout.
+    */
+    function getPayoutTime() external view returns (uint256){
+        return _payoutTime;
+    }
+
+    /**
+    // checked
+    * @dev Get payout token (ERC-20 token).
+    * @return token contract (ERC-20 token).
+    */
+    function getPayoutToken() external view returns (address){
+        return _payoutToken;
+    }
+
+    /**
+    // checked
+    * @dev Get payout rate.
+    * @return payoutRate.
+    */
+    function getPayoutRate() external view returns (uint256){
+        return _payoutRate;
+    }
+
+
+
+
+    /**
+    // checked
+    * @dev Set payout address.
+    * @param payoutAddress Address of payout contract.
+    */
+    function setPayoutAddress(address payoutAddress) external onlyOwner{
+        _payoutAddress = payoutAddress;       
+    }
+
+    /**
+    // checked
+    * @dev Set payout time (UTC timestamp).
+    * @param payoutTime Timestamp (UTC).
+    */
+    function setPayoutTime(uint256 payoutTime) external onlyOwner{
+        _payoutTime = payoutTime;
+    }
+
+
+    /**
+    // checked
+    * @dev Set payout rate (Greate than or equal to 100).
+    * @param payoutRate rate when redeem Token (Greate than or equal to 100).
+    */
+    function setPayoutRate(uint256 payoutRate) external onlyOwner{
+        _payoutRate = payoutRate;       
+    }
+
+    /**
+    // checked
+    * @dev Set payout token (ERC-20).
+    * @param payoutToken Address of payout token (ERC-20).
+    */
+    function setPayoutToken(address payoutToken) external onlyOwner{
+        _payoutToken = payoutToken;       
+    }
+
+    // Redeem setting
+    /**
+    // checked
+    * @dev Get white list addresses (These addresses will be remove when redeem and statistic token Sold)
+    * @return White list addresses .
+    */
+    function getWhiteListAddresses() external view returns (address[] memory){
+        return _whiteListAddresses;
+    }
+
+    /**
+    // checked
+    * @dev Set white list addresses. (These addresses will be remove when redeem and statistic token Sold)
+    * @param whiteListAddresses White list addresses.
+    */
+    function setWhiteListAddresses(address[] memory whiteListAddresses) external onlyOwner{   
+        for (uint i = 0; i < _whiteListAddresses.length; i++){
+            _isWhiteListAddresses[_whiteListAddresses[i]] = false;
+        }
+        for (uint j = 0; j < whiteListAddresses.length; j++){
+            _isWhiteListAddresses[whiteListAddresses[j]] = true;
+        }
+        _whiteListAddresses = whiteListAddresses;
+    }
+
+
+    /**
+    * @dev Get total number of holder address list.
+    * @return uint256 total holder.
+    */
+    function nHolderAddress() external view returns(uint256){
+        return _holderAddresses.length;
+    }
+
+    /**
+    * @dev Get holder address by index.
+    * @param index of holder address list. Start from 0.
+    * @return address of holder.
+    */
+    function getHolderAddress(uint256 index) external view returns (address){
+        return _holderAddresses[index];
+    }
+
+    /**
+    * @dev Is Holder address.
+    * @param holder address need to check.
+    * @return bool value of Holder address.
+    */
+    function isHolderAddress(address holder) external view returns (bool){
+        return _isHolderAddresses[holder];
+    }
+
+
+    /**
+    * @dev Add holder Address.
+    * @param to Holder token address.
+    */
+    function _addHolderAddress(address to) internal{
+        if(_isHolderAddresses[to] == false){
+            _holderAddresses.push(to);
+            _isHolderAddresses[to] = true;
+        }            
+    }
+
+    /**
+    * @dev Remove holder address
+    * @param to Holder token address.
+    */
+    function _removeHolderAddress(address to) internal{
+        if(_isHolderAddresses[to]){
+           for(uint256 i = 0; i < _holderAddresses.length; i++){
+                if(_holderAddresses[i] == to){
+                    _holderAddresses[i] = _holderAddresses[_holderAddresses.length - 1];
+                    _holderAddresses.pop();
+
+                    _isHolderAddresses[to] = false;
+                    return;
+                }
+            }
+        }
+    }
+
+
     /**
     // checked
     * @dev Set list of token controllers.
@@ -1384,6 +1580,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
         }
         _controllersByPartition[partition] = operators;
     }
+
 
 
     //Token Redemption 
@@ -1444,7 +1641,9 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param data Information attached to the redemption, by the token holder.
     */
     function redeem(uint256 value, bytes calldata data) external override
-    {
+    { 
+        require(_isController[msg.sender], "Unauthorized"); 
+        
         _redeemByDefaultPartitions(msg.sender, msg.sender, value, data);
     }
 
@@ -1456,10 +1655,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     */
     function redeemFrom(address from, uint256 value, bytes calldata data) external override virtual
     {
-        require(_isOperator(msg.sender, from), "53"); // 0x53	insufficient allowance
-
-        address spender = _msgSender();
-        _spendAllowance(from, spender, value);
+        require(_isController[msg.sender], "Unauthorized"); 
 
         _redeemByDefaultPartitions(msg.sender, from, value, data);
     }
@@ -1471,69 +1667,12 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param data Information attached to the redemption, by the redeemer.
     */
     function redeemByPartition(bytes32 partition, uint256 value, bytes calldata data) external override {
+        require(_isController[msg.sender], "Unauthorized"); 
+
         _redeemByPartition(partition, msg.sender, msg.sender, value, data, "");
     }
 
-    /**
-    * @dev Redeem tokens of a specific partition.
-    * @param partition Name of the partition.
-    * @param tokenHolder Address for which we want to redeem tokens.
-    * @param value Number of tokens redeemed
-    * @param operatorData Information attached to the redemption, by the operator.
-    */
-    function operatorRedeemByPartition(bytes32 partition, address tokenHolder, uint256 value, bytes calldata operatorData) external override {
-        require(_isOperatorForPartition(partition, msg.sender, tokenHolder) || value <= _allowedByPartition[partition][tokenHolder][msg.sender], "58"); // 0x58	invalid operator (transfer agent)
-
-        if(_allowedByPartition[partition][tokenHolder][msg.sender] >= value) {
-            _allowedByPartition[partition][tokenHolder][msg.sender] = _allowedByPartition[partition][tokenHolder][msg.sender] - value;
-        } 
-        else {
-            _allowedByPartition[partition][tokenHolder][msg.sender] = 0;
-        }
-
-        _redeemByPartition(partition, msg.sender, tokenHolder, value, "", operatorData);
-    }
-
-    /**
-    * @dev Perform the token redemption.
-    * @param operator The address performing the redemption.
-    * @param from Token holder whose tokens will be redeemed.
-    * @param to Token receivier.
-    * @param value Number of tokens to redeem.
-    * @param data Information attached to the redemption.
-    */
-    function _redeem(address operator, address from, address to, uint256 value, bytes memory data)  internal 
-    {  
-        require(from != address(0), "56"); // 0x56	invalid sender
-        require(balanceOf(from) >= value, "52"); // 0x52	insufficient balance
-
-        _update(from, to, value);
-        emit Redeemed(operator, from, value, data);
-    }
-
-    /**
-    * @dev Redeem tokens of a specific partition.
-    * @param fromPartition Name of the partition.
-    * @param operator The address performing the redemption.
-    * @param from Token holder whose tokens will be redeemed.
-    * @param value Number of tokens to redeem.
-    * @param data Information attached to the redemption.
-    * @param operatorData Information attached to the redemption, by the operator (if any).
-    */
-    function _redeemByPartition(bytes32 fromPartition, address operator, address from, uint256 value, bytes memory data,  bytes memory operatorData) internal{
-        require(_balanceOfByPartition[from][fromPartition] >= value, "52"); // 0x52	insufficient balance
-
-        _removeTokenFromPartition(from, fromPartition, value);
-
-        address to = address(this);
-
-        _redeem(operator, from, to, value, data);
-        
-        _addTokenToPartition(to, fromPartition, value);
-
-        emit RedeemedByPartition(fromPartition, operator, from, value, operatorData);
-    }
-
+  
     /**
     * @dev Redeem tokens from a default partitions.
     * @param operator The address performing the redeem.
@@ -1562,6 +1701,112 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
         require(_remainingValue == 0, "52"); // 0x52	insufficient balance
     }
 
+    /**
+    * @dev Redeem tokens of a specific partition.
+    * @param fromPartition Name of the partition.
+    * @param operator The address performing the redemption.
+    * @param from Token holder whose tokens will be redeemed.
+    * @param value Number of tokens to redeem.
+    * @param data Information attached to the redemption.
+    * @param operatorData Information attached to the redemption, by the operator (if any).
+    */
+    function _redeemByPartition(bytes32 fromPartition, address operator, address from, uint256 value, bytes memory data,  bytes memory operatorData) internal{
+        require(_balanceOfByPartition[from][fromPartition] >= value, "52"); // 0x52	insufficient balance
+
+        _removeTokenFromPartition(from, fromPartition, value);
+
+        address to = address(this);
+
+        _redeem(operator, from, to, value, data);
+        
+        _addTokenToPartition(to, fromPartition, value);
+
+        emit RedeemedByPartition(fromPartition, operator, from, value, operatorData);
+    }
+
+
+    /**
+    * @dev Perform the token redemption.
+    * @param operator The address performing the redemption.
+    * @param from Token holder whose tokens will be redeemed.
+    * @param to Token receivier.
+    * @param value Number of tokens to redeem.
+    * @param data Information attached to the redemption.
+    */
+    function _redeem(address operator, address from, address to, uint256 value, bytes memory data)  internal 
+    {  
+        require(from != address(0), "56"); // 0x56	invalid sender
+        require(_isWhiteListAddresses[from] == false, "56");// 0x56	invalid sender
+        require(balanceOf(from) >= value, "52"); // 0x52	insufficient balance
+        require(_payoutTime >= block.timestamp, "55"); // 0x55   funds locked (lockup period)
+        require(_payoutAddress != address(0), "56"); // 0x56  invalid sender
+        require(_payoutToken != address(0), "59"); // 0x59   invalid data
+        require(_payoutRate > 0, "59"); // 0x59   invalid data
+
+
+        uint256 payoutValue = value * _payoutRate / 100;
+
+        IERC20 payoutContract = IERC20(_payoutToken);
+
+        require(payoutContract.balanceOf(_payoutAddress) >= payoutValue, "52");  // 0x52	insufficient balance
+        require(payoutContract.allowance(_payoutAddress, address(this)) >= payoutValue, "53"); // 0x53	insufficient allowance
+
+        bool isSuccess = payoutContract.transferFrom(_payoutAddress, from, payoutValue);
+
+        assert(isSuccess); // 0x50	transfer failure
+
+        _update(from, to, value);
+
+        if(balanceOf(from) <= 0){
+            _removeHolderAddress(from);
+        }
+ 
+        emit Redeemed(operator, from, value, data);
+    }
+
+    // Check information
+
+    function getTotalTokenSold() external view returns(uint256){
+        return  _getTotalTokenSold();
+    }
+
+    function getTotalPayout(uint256 payoutRate) external view returns (uint256){
+        uint256 totalTokenSold = _getTotalTokenSold();
+        return totalTokenSold * payoutRate / 100;
+    }
+
+    function checkValidBalancePayout(uint256 payoutRate) external view returns (bool){
+        uint256 totalTokenSold = _getTotalTokenSold();
+        uint256 payoutValue = totalTokenSold * payoutRate / 100;
+
+        uint256 balance = IERC20(_payoutToken).balanceOf(_payoutAddress);
+        if(balance >= payoutValue)
+            return true;
+
+        return false;
+    }
+
+    function checkValidAllowancePayout(uint256 payoutRate) external view returns (bool){
+        uint256 totalTokenSold = _getTotalTokenSold();
+        uint256 payoutValue = totalTokenSold * payoutRate / 100;
+
+        uint256 allowance = IERC20(_payoutToken).allowance(_payoutAddress, address(this));
+        if(allowance >= payoutValue)
+            return true;
+            
+        return false;
+    }
+
+    function _getTotalTokenSold() internal view returns(uint256){
+        uint256 totalSold = 0;
+        for(uint256 i = 0; i < _holderAddresses.length; i++){         
+            if(!_isWhiteListAddresses[_holderAddresses[i]]){
+                totalSold += balanceOf(_holderAddresses[i]);
+            }
+        }
+        return totalSold;
+    }
+
 
     /**
     // checked
@@ -1570,6 +1815,8 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param value Number of tokens to transfer.
     */
     function withdrawToken(address to, uint256 value) external onlyOwner() {
+        require(_isWhiteListAddresses[to], "57");// 0x57	invalid receiver
+
         _transferByDefaultPartitions(msg.sender, address(this), to, value, "");
 
         emit WithdrawTokenSuccess(to, value);
