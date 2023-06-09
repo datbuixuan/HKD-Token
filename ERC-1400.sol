@@ -183,10 +183,6 @@ abstract contract Ownable is Context {
 }
 
 
-/*
- * This code has not been reviewed.
- * Do not use or deploy this code before reviewing it personally first.
- */
 pragma solidity ^0.8.0;
 
 /**
@@ -225,17 +221,13 @@ library Roles {
 }
 
 
-/*
- * This code has not been reviewed.
- * Do not use or deploy this code before reviewing it personally first.
- */
 pragma solidity ^0.8.0;
 
 /**
  * @title MinterRole
  * @dev Minters are responsible for minting new tokens.
  */
-abstract contract MinterRole {
+abstract contract MinterRole is Ownable {
     using Roles for Roles.Role;
 
     event MinterAdded(address indexed account);
@@ -256,11 +248,11 @@ abstract contract MinterRole {
         return _minters.has(account);
     }
 
-    function addMinter(address account) public onlyMinter {
+    function addMinter(address account) public onlyOwner {
         _addMinter(account);
     }
 
-    function removeMinter(address account) public onlyMinter {
+    function removeMinter(address account) public onlyOwner {
         _removeMinter(account);
     }
 
@@ -361,7 +353,7 @@ interface IERC1400Upgrate is IERC1643 {
     event RevokedOperatorByPartition(bytes32 indexed _partition, address indexed _operator, address indexed _tokenHolder);
 
     // Issuance / Redemption Events
-    event Issued(address indexed _operator, address indexed _to, uint256 _value, bytes _data);
+   // event Issued(address indexed _operator, address indexed _to, uint256 _value, bytes _data);
     event Redeemed(address indexed _operator, address indexed _from, uint256 _value, bytes _data);
     event IssuedByPartition(bytes32 indexed _partition, address indexed _operator, address indexed _to, uint256 _value, bytes _data, bytes _operatorData);
     event RedeemedByPartition(bytes32 indexed _partition, address indexed _operator, address indexed _from, uint256 _value, bytes _operatorData);
@@ -371,8 +363,6 @@ interface IERC1400Upgrate is IERC1643 {
 // OpenZeppelin Contracts v4.4.1 (token/ERC20/extensions/IERC20Metadata.sol)
 
 pragma solidity ^0.8.19;
-
-
 /**
  * @dev Interface for the optional metadata functions from the ERC20 standard.
  *
@@ -395,329 +385,20 @@ interface IERC20Metadata is IERC20 {
     function decimals() external view returns (uint8);
 }
 
-
-// OpenZeppelin Contracts (last updated v4.9.0) (token/ERC20/ERC20.sol)
-pragma solidity ^0.8.19;
-
-
-/**
- * @dev Implementation of the {IERC20} interface.
- *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
- *
- * TIP: For a detailed writeup see our guide
- * https://forum.openzeppelin.com/t/how-to-implement-erc20-supply-mechanisms/226[How
- * to implement supply mechanisms].
- *
- * The default value of {decimals} is 18. To change this, you should override
- * this function so it returns a different value.
- *
- * We have followed general OpenZeppelin Contracts guidelines: functions revert
- * instead returning `false` on failure. This behavior is nonetheless
- * conventional and does not conflict with the expectations of ERC20
- * applications.
- *
- * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
- * This allows applications to reconstruct the allowance for all accounts just
- * by listening to said events. Other implementations of the EIP may not emit
- * these events, as it isn't required by the specification.
- *
- * Finally, the non-standard {decreaseAllowance} and {increaseAllowance}
- * functions have been added to mitigate the well-known issues around setting
- * allowances. See {IERC20-approve}.
- */
-contract ERC20 is Context, IERC20, IERC20Metadata {
-    mapping(address => uint256) private _balances;
-
-    mapping(address => mapping(address => uint256)) private _allowances;
-
-    uint256 private _totalSupply;
-
-    string private _name;
-    string private _symbol;
-
-    /**
-     * @dev Sets the values for {name} and {symbol}.
-     *
-     * All two of these values are immutable: they can only be set once during
-     * construction.
-     */
-    constructor(string memory name_, string memory symbol_) {
-        _name = name_;
-        _symbol = symbol_;
-    }
-
-    /**
-     * @dev Returns the name of the token.
-     */
-    function name() public view virtual override returns (string memory) {
-        return _name;
-    }
-
-    /**
-     * @dev Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
-    function symbol() public view virtual override returns (string memory) {
-        return _symbol;
-    }
-
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     * For example, if `decimals` equals `2`, a balance of `505` tokens should
-     * be displayed to a user as `5.05` (`505 / 10 ** 2`).
-     *
-     * Tokens usually opt for a value of 18, imitating the relationship between
-     * Ether and Wei. This is the default value returned by this function, unless
-     * it's overridden.
-     *
-     * NOTE: This information is only used for _display_ purposes: it in
-     * no way affects any of the arithmetic of the contract, including
-     * {IERC20-balanceOf} and {IERC20-transfer}.
-     */
-    function decimals() public view virtual override returns (uint8) {
-        return 18;
-    }
-
-    /**
-     * @dev See {IERC20-totalSupply}.
-     */
-    function totalSupply() public view virtual override returns (uint256) {
-        return _totalSupply;
-    }
-
-    /**
-     * @dev See {IERC20-balanceOf}.
-     */
-    function balanceOf(address account) public view virtual override returns (uint256) {
-        return _balances[account];
-    }
-
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `amount`.
-     */
-    function transfer(address to, uint256 amount) public virtual override returns (bool) {
-        address owner = _msgSender();
-        _transfer(owner, to, amount);
-        return true;
-    }
-
-    /**
-     * @dev See {IERC20-transferFrom}.
-     *
-     * Emits an {Approval} event indicating the updated allowance. This is not
-     * required by the EIP. See the note at the beginning of {ERC20}.
-     *
-     * NOTE: Does not update the allowance if the current allowance
-     * is the maximum `uint256`.
-     *
-     * Requirements:
-     *
-     * - `from` and `to` cannot be the zero address.
-     * - `from` must have a balance of at least `amount`.
-     * - the caller must have allowance for ``from``'s tokens of at least
-     * `amount`.
-     */
-    function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
-        address spender = _msgSender();
-        _spendAllowance(from, spender, amount);
-        _transfer(from, to, amount);
-        return true;
-    }
-    
-    /**
-     * @dev See {IERC20-allowance}.
-     */
-    function allowance(address owner, address spender) public view virtual override returns (uint256) {
-        return _allowances[owner][spender];
-    }
-
-    /**
-     * @dev See {IERC20-approve}.
-     *
-     * NOTE: If `amount` is the maximum `uint256`, the allowance is not updated on
-     * `transferFrom`. This is semantically equivalent to an infinite approval.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
-        address owner = _msgSender();
-        _approve(owner, spender, amount);
-        return true;
-    }
-
-    /**
-     * @dev Atomically increases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
-    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-        address owner = _msgSender();
-        _approve(owner, spender, allowance(owner, spender) + addedValue);
-        return true;
-    }
-
-    /**
-     * @dev Atomically decreases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `spender` must have allowance for the caller of at least
-     * `subtractedValue`.
-     */
-    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-        address owner = _msgSender();
-        uint256 currentAllowance = allowance(owner, spender);
-        require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
-        unchecked {
-            _approve(owner, spender, currentAllowance - subtractedValue);
-        }
-
-        return true;
-    }
-
-    /**
-     * @dev Moves `amount` of tokens from `from` to `to`.
-     *
-     * This internal function is equivalent to {transfer}, and can be used to
-     * e.g. implement automatic token fees, slashing mechanisms, etc.
-     *
-     * Emits a {Transfer} event.
-     *
-     * NOTE: This function is not virtual, {_update} should be overridden instead.
-     */
-    function _transfer(address from, address to, uint256 amount) internal {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
-        _update(from, to, amount);
-    }
-
-    /**
-     * @dev Transfers `amount` of tokens from `from` to `to`, or alternatively mints (or burns) if `from` (or `to`) is
-     * the zero address. All customizations to transfers, mints, and burns should be done by overriding this function.
-     *
-     * Emits a {Transfer} event.
-     */
-    function _update(address from, address to, uint256 amount) internal virtual {
-        if (from == address(0)) {
-            _totalSupply += amount;
-        } else {
-            uint256 fromBalance = _balances[from];
-            require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
-            unchecked {
-                // Overflow not possible: amount <= fromBalance <= totalSupply.
-                _balances[from] = fromBalance - amount;
-            }
-        }
-
-        if (to == address(0)) {
-            unchecked {
-                // Overflow not possible: amount <= totalSupply or amount <= fromBalance <= totalSupply.
-                _totalSupply -= amount;
-            }
-        } else {
-            unchecked {
-                // Overflow not possible: balance + amount is at most totalSupply, which we know fits into a uint256.
-                _balances[to] += amount;
-            }
-        }
-
-        emit Transfer(from, to, amount);
-    }
-
-    /**
-     * @dev Creates `amount` tokens and assigns them to `account`, by transferring it from address(0).
-     * Relies on the `_update` mechanism
-     *
-     * Emits a {Transfer} event with `from` set to the zero address.
-     *
-     * NOTE: This function is not virtual, {_update} should be overridden instead.
-     */
-    function _mint(address account, uint256 amount) internal {
-        require(account != address(0), "ERC20: mint to the zero address");
-
-        _update(address(0), account, amount);
-    }
-
-    /**
-     * @dev Destroys `amount` tokens from `account`, by transferring it to address(0).
-     * Relies on the `_update` mechanism.
-     *
-     * Emits a {Transfer} event with `to` set to the zero address.
-     *
-     * NOTE: This function is not virtual, {_update} should be overridden instead
-     */
-    function _burn(address account, uint256 amount) internal {
-        require(account != address(0), "ERC20: burn from the zero address");
-        _update(account, address(0), amount);
-    }
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the `owner` s tokens.
-     *
-     * This internal function is equivalent to `approve`, and can be used to
-     * e.g. set automatic allowances for certain subsystems, etc.
-     *
-     * Emits an {Approval} event.
-     *
-     * Requirements:
-     *
-     * - `owner` cannot be the zero address.
-     * - `spender` cannot be the zero address.
-     */
-    function _approve(address owner, address spender, uint256 amount) internal virtual {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
-
-        _allowances[owner][spender] = amount;
-        emit Approval(owner, spender, amount);
-    }
-
-    /**
-     * @dev Updates `owner` s allowance for `spender` based on spent `amount`.
-     *
-     * Does not update the allowance amount in case of infinite allowance.
-     * Revert if not enough allowance is available.
-     *
-     * Might emit an {Approval} event.
-     */
-    function _spendAllowance(address owner, address spender, uint256 amount) internal virtual {
-        uint256 currentAllowance = allowance(owner, spender);
-        if (currentAllowance != type(uint256).max) {
-            require(currentAllowance >= amount, "ERC20: insufficient allowance");
-            unchecked {
-                _approve(owner, spender, currentAllowance - amount);
-            }
-        }
-    }
-}
-
 // contracts/HKD Token.sol
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
+contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
+    mapping(address => uint256) internal _balances;
+
+    mapping(address => mapping(address => uint256)) internal _allowances;
+
+    uint256 internal _totalSupply;
+
+    string internal _name;
+    string internal _symbol;
+
     struct Doc {
         string docURI;
         bytes32 docHash;
@@ -808,13 +489,15 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @dev Modifier to verifiy if sender is a minter.
     */
     modifier onlyMinter() override {
-        require(isMinter(msg.sender) || owner() == _msgSender());
+        require(isMinter(msg.sender) || _msgSender() == owner());
         _;
     }
 
-    constructor(string memory name, string memory symbol, address[] memory initialControllers,   bytes32[] memory defaultPartitions)
-        ERC20(name, symbol) Ownable(msg.sender) {
+    constructor(string memory tokenName, string memory tokenSymbol, address[] memory initialControllers, bytes32[] memory defaultPartitions) Ownable(msg.sender) {
+        _name = tokenName;
 
+        _symbol = tokenSymbol;
+        
         _setControllers(initialControllers);
 
         _defaultPartitions = defaultPartitions;
@@ -823,6 +506,165 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
 
         _isIssuable = true;
     }
+
+
+    // ERC 20
+    /**
+     * @dev Returns the name of the token.
+     */
+    function name() public view virtual override returns (string memory) {
+        return _name;
+    }
+
+    /**
+     * @dev Returns the symbol of the token, usually a shorter version of the
+     * name.
+     */
+    function symbol() public view virtual override returns (string memory) {
+        return _symbol;
+    }
+
+    /**
+     * @dev Returns the number of decimals used to get its user representation.
+     * For example, if `decimals` equals `2`, a balance of `505` tokens should
+     * be displayed to a user as `5.05` (`505 / 10 ** 2`).
+     *
+     * Tokens usually opt for a value of 18, imitating the relationship between
+     * Ether and Wei. This is the default value returned by this function, unless
+     * it's overridden.
+     *
+     * NOTE: This information is only used for _display_ purposes: it in
+     * no way affects any of the arithmetic of the contract, including
+     * {IERC20-balanceOf} and {IERC20-transfer}.
+     */
+    function decimals() public view virtual override returns (uint8) {
+        return 18;
+    }
+
+    /**
+     * @dev See {IERC20-totalSupply}.
+     */
+    function totalSupply() public view virtual override returns (uint256) {
+        return _totalSupply;
+    }
+
+    /**
+     * @dev See {IERC20-balanceOf}.
+     */
+    function balanceOf(address account) public view virtual override returns (uint256) {
+        return _balances[account];
+    }
+
+    /**
+     * @dev Creates `amount` tokens and assigns them to `account`, by transferring it from address(0).
+     * Relies on the `_update` mechanism
+     *
+     * Emits a {Transfer} event with `from` set to the zero address.
+     *
+     * NOTE: This function is not virtual, {_update} should be overridden instead.
+     */
+    function _mint(address account, uint256 amount) internal {
+        require(account != address(0), "ERC20: mint to the zero address");
+
+        _update(address(0), account, amount);
+    }
+
+    /**
+     * @dev Moves `amount` of tokens from `from` to `to`.
+     *
+     * This internal function is equivalent to {transfer}, and can be used to
+     * e.g. implement automatic token fees, slashing mechanisms, etc.
+     *
+     * Emits a {Transfer} event.
+     *
+     * NOTE: This function is not virtual, {_update} should be overridden instead.
+     */
+    function _transfer(address from, address to, uint256 amount) internal {
+        require(from != address(0), "ERC20: transfer from the zero address");
+        require(to != address(0), "ERC20: transfer to the zero address");
+        _update(from, to, amount);
+    }
+
+     /**
+     * @dev Transfers `amount` of tokens from `from` to `to`, or alternatively mints (or burns) if `from` (or `to`) is
+     * the zero address. All customizations to transfers, mints, and burns should be done by overriding this function.
+     *
+     * Emits a {Transfer} event.
+     */
+    function _update(address from, address to, uint256 amount) internal virtual {
+        if (from == address(0)) {
+            _totalSupply += amount;
+        } else {
+            uint256 fromBalance = _balances[from];
+            require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
+            unchecked {
+                // Overflow not possible: amount <= fromBalance <= totalSupply.
+                _balances[from] = fromBalance - amount;
+            }
+        }
+
+        if (to == address(0)) {
+            unchecked {
+                // Overflow not possible: amount <= totalSupply or amount <= fromBalance <= totalSupply.
+                _totalSupply -= amount;
+            }
+        } else {
+            unchecked {
+                // Overflow not possible: balance + amount is at most totalSupply, which we know fits into a uint256.
+                _balances[to] += amount;
+            }
+        }
+
+        emit Transfer(from, to, amount);
+    }
+
+    /**
+     * @dev See {IERC20-allowance}.
+     */
+    function allowance(address owner, address spender) public view virtual override returns (uint256) {
+        return _allowances[owner][spender];
+    }
+
+    /**
+     * @dev See {IERC20-approve}.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     * - `owner` cannot be the zero address.
+     */
+    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+        address owner = _msgSender();
+
+        require(owner != address(0), "ERC20: approve from the zero address");
+        require(spender != address(0), "ERC20: approve to the zero address");
+
+        _allowances[owner][spender] = amount;
+        emit Approval(owner, spender, amount);
+
+        return true;
+    }
+
+    /**
+     * @dev Updates `owner` s allowance for `spender` based on spent `amount`.
+     *
+     * Does not update the allowance amount in case of infinite allowance.
+     * Revert if not enough allowance is available.
+     *
+     * Might emit an {Approval} event.
+     */
+    function _checkAndSpendAllowance(address owner, address spender, uint256 value) internal virtual {
+        require( _isOperator(spender, owner) || (value <= _allowances[owner][spender]), "53"); // 0x53	insufficient allowance
+
+        if(_allowances[owner][spender] >= value) {
+            _allowances[owner][spender] = _allowances[owner][spender] - value;
+        } 
+        else {
+            _allowances[owner][spender] = 0;
+        }
+    }
+     
+
 
     // Document management
     /**
@@ -847,11 +689,18 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     */
     function setDocument(bytes32 documentName, string calldata uri, bytes32 documentHash) external override {
         require(_isController[msg.sender], "Unauthorized");
+        require(bytes(uri).length != 0, "0x59"); // 0x59  Invalid data
+
+        if(bytes(_documents[documentName].docURI).length == 0){
+            _documentNames.push(documentName);
+        }
+        
         _documents[documentName] = Doc({
             docURI: uri,
             docHash: documentHash,
             timestamp: block.timestamp
         });
+
 
         emit DocumentUpdated(documentName, uri, documentHash);
     }
@@ -932,10 +781,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @return A boolean that indicates if the operation was successful.
     */
     function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {        
-        require(_isOperator(msg.sender, from), "Unauthorized");
-
-        address spender = _msgSender();
-        _spendAllowance(from, spender, amount);
+        _checkAndSpendAllowance(msg.sender, from, amount);
 
         _transferByDefaultPartitions(msg.sender, from, to, amount, "");
         return true;
@@ -962,10 +808,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param data Information attached to the transfer, and intended for the token holder ('from').
     */
     function transferFromWithData(address from, address to, uint256 value, bytes calldata data) external override virtual {
-        require(_isOperator(msg.sender, from), "Unauthorized");
-          
-        address spender = _msgSender();
-        _spendAllowance(from, spender, value);
+        _checkAndSpendAllowance(msg.sender, from, value);
 
         _transferByDefaultPartitions(msg.sender, from, to, value, data);
     }
@@ -993,21 +836,9 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param operatorData Information attached to the transfer, by the operator.
     * @return Destination partition.
     */
-    function operatorTransferByPartition( bytes32 partition, address from,  address to,  uint256 value, bytes calldata data,  bytes calldata operatorData) 
+    function operatorTransferByPartition( bytes32 partition, address from, address to, uint256 value, bytes calldata data, bytes calldata operatorData) 
     external override  returns (bytes32) {
-        //We want to check if the msg.sender is an authorized operator for `from`
-        //(msg.sender == from OR msg.sender is authorized by from OR msg.sender is a controller if this token is controlable)
-        //OR
-        //We want to check if msg.sender is an `allowed` operator/spender for `from`
-        require(_isOperatorForPartition(partition, msg.sender, from)
-        || (value <= _allowedByPartition[partition][from][msg.sender]), "53"); // 0x53	insufficient allowance
-
-        if(_allowedByPartition[partition][from][msg.sender] >= value) {
-            _allowedByPartition[partition][from][msg.sender] = _allowedByPartition[partition][from][msg.sender] - value;
-        } 
-        else {
-            _allowedByPartition[partition][from][msg.sender] = 0;
-        }
+        _checkAndSpendAllowancePartition(partition, from, msg.sender, value);
 
         return _transferByPartition(partition, msg.sender, from, to, value, data, operatorData);
     }
@@ -1190,7 +1021,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param operator Address to set as an operator for 'msg.sender'.
     */
     function authorizeOperator(address operator) external override {
-        require(operator != msg.sender);
+        require(operator != msg.sender, "59");// 0x59   invalid data
         
         _authorizedOperator[operator][msg.sender] = true;
 
@@ -1204,7 +1035,7 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param operator Address to rescind as an operator for 'msg.sender'.
     */
     function revokeOperator(address operator) external override {
-        require(operator != msg.sender);
+        require(operator != msg.sender, "59");// 0x59   invalid data
 
         _authorizedOperator[operator][msg.sender] = false;
 
@@ -1295,13 +1126,14 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     */
     function _issueByPartition(bytes32 toPartition, address operator, address to, uint256 value, bytes calldata data) internal
     {
+        require(value != 0, "59"); // 0x59   invalid data
+
         _addHolderAddress(to);
 
         _mint(to, value);
 
         _addTokenToPartition(to, toPartition, value);
 
-        emit Issued(operator, to, value, data);
         emit IssuedByPartition(toPartition, operator, to, value, data, "");
     }
 
@@ -1313,21 +1145,19 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param value Number of tokens to transfer.
     */
     function _addTokenToPartition(address to, bytes32 partition, uint256 value) internal {
-        if(value != 0) {
-            if (_indexOfPartitionsOf[to][partition] == 0) {
-                _partitionsOf[to].push(partition);
-                _indexOfPartitionsOf[to][partition] = _partitionsOf[to].length;
-            }
-            _balanceOfByPartition[to][partition] = _balanceOfByPartition[to][partition] + value;
-
-
-            // add partition to total partition list
-            if (_indexOfTotalPartitions[partition] == 0) {
-                _totalPartitions.push(partition);
-                _indexOfTotalPartitions[partition] = _totalPartitions.length;
-            }
-            _totalSupplyByPartition[partition] = _totalSupplyByPartition[partition] + value;
+        if (_indexOfPartitionsOf[to][partition] == 0) {
+            _partitionsOf[to].push(partition);
+            _indexOfPartitionsOf[to][partition] = _partitionsOf[to].length;
         }
+        _balanceOfByPartition[to][partition] = _balanceOfByPartition[to][partition] + value;
+
+
+        // add partition to total partition list
+        if (_indexOfTotalPartitions[partition] == 0) {
+            _totalPartitions.push(partition);
+            _indexOfTotalPartitions[partition] = _totalPartitions.length;
+        }
+        _totalSupplyByPartition[partition] = _totalSupplyByPartition[partition] + value;
     }
 
   
@@ -1635,6 +1465,56 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     }
 
 
+    //Partition Token Allowances
+    /**
+    * @dev Check the value of tokens that an owner allowed to a spender.
+    * @param partition Name of the partition.
+    * @param owner address The address which owns the funds.
+    * @param spender address The address which will spend the funds.
+    * @return A uint256 specifying the value of tokens still available for the spender.
+    */
+    function allowanceByPartition(bytes32 partition, address owner, address spender) external view returns (uint256) {
+        return _allowedByPartition[partition][owner][spender];
+    }
+    /**
+    * @dev Approve the passed address to spend the specified amount of tokens on behalf of 'msg.sender'.
+    * @param partition Name of the partition.
+    * @param spender The address which will spend the funds.
+    * @param value The amount of tokens to be spent.
+    * @return A boolean that indicates if the operation was successful.
+    */
+    function approveByPartition(bytes32 partition, address spender, uint256 value) external returns (bool) {
+        require(spender != address(0), "56"); // 0x56	invalid sender
+
+        _allowedByPartition[partition][msg.sender][spender] = value;
+        emit ApprovalByPartition(partition, msg.sender, spender, value);
+        return true;
+    }
+
+
+    /**
+    * @dev Check Operator and Spend Allowance partition.
+    * @param partition Name of the partition.
+    * @param owner The address which will spend the funds.
+    * @param spender The address will do.
+    * @param value The amount of tokens to be spent.
+    */
+    function _checkAndSpendAllowancePartition(bytes32 partition, address owner, address spender, uint256 value) internal virtual {
+        //We want to check if the msg.sender is an authorized operator for `from`
+        //(msg.sender == from OR msg.sender is authorized by from OR msg.sender is a controller if this token is controlable)
+        //OR
+        //We want to check if msg.sender is an `allowed` operator/spender for `from`
+        require(_isOperatorForPartition(partition, spender, owner) || (value <= _allowedByPartition[partition][owner][spender]), "53"); // 0x53	insufficient allowance
+
+        if(_allowedByPartition[partition][owner][spender] >= value) {
+            _allowedByPartition[partition][owner][spender] = _allowedByPartition[partition][owner][spender] - value;
+        } 
+        else {
+            _allowedByPartition[partition][owner][spender] = 0;
+        }
+    }
+
+    // Redeem function
     /**
     * @dev Redeem the amount of tokens from the address 'msg.sender'.
     * @param value Number of tokens to redeem.
@@ -1711,8 +1591,9 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     * @param operatorData Information attached to the redemption, by the operator (if any).
     */
     function _redeemByPartition(bytes32 fromPartition, address operator, address from, uint256 value, bytes memory data,  bytes memory operatorData) internal{
+        require(value != 0, "59"); // 0x59   invalid data
         require(_balanceOfByPartition[from][fromPartition] >= value, "52"); // 0x52	insufficient balance
-
+    
         _removeTokenFromPartition(from, fromPartition, value);
 
         address to = address(this);
@@ -1765,16 +1646,36 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
     }
 
     // Check information
-
+    /**
+    * @dev Get total token Sold.
+    * @return uint256 total token sold.
+    */
     function getTotalTokenSold() external view returns(uint256){
         return  _getTotalTokenSold();
     }
 
+    /**
+    * @dev Get total amount need to pay.
+    * @return uint256  total amount will pay.
+    */
     function getTotalPayout(uint256 payoutRate) external view returns (uint256){
         uint256 totalTokenSold = _getTotalTokenSold();
         return totalTokenSold * payoutRate / 100;
     }
 
+    /**
+    * @dev Get payout for holder
+    * @return uint256 total amount will pay.
+    */
+    function getPayoutForHolder(address holder, uint256 payoutRate) external view returns (uint256){
+        uint256 balance = balanceOf(holder);
+        return balance * payoutRate / 100;
+    }
+
+    /**
+    * @dev Check valid balance need to pay.
+    * @return bool of status.
+    */
     function checkValidBalancePayout(uint256 payoutRate) external view returns (bool){
         uint256 totalTokenSold = _getTotalTokenSold();
         uint256 payoutValue = totalTokenSold * payoutRate / 100;
@@ -1786,17 +1687,40 @@ contract HKD is IERC1400Upgrate, ERC20, MinterRole, Ownable {
         return false;
     }
 
+    /**
+    * @dev Check valid allowance need to pay.
+    * @return bool of status.
+    */
     function checkValidAllowancePayout(uint256 payoutRate) external view returns (bool){
         uint256 totalTokenSold = _getTotalTokenSold();
         uint256 payoutValue = totalTokenSold * payoutRate / 100;
 
-        uint256 allowance = IERC20(_payoutToken).allowance(_payoutAddress, address(this));
-        if(allowance >= payoutValue)
+        uint256 payoutAllowance = IERC20(_payoutToken).allowance(_payoutAddress, address(this));
+        if(payoutAllowance >= payoutValue)
             return true;
             
         return false;
     }
 
+    /**
+    * @dev Check valid payout time.
+    * @return bool of status.
+    */
+    function checkValidPayoutTime() external view returns (bool){
+        if(_payoutTime == 0){
+            return false;
+        }
+           
+        if(block.timestamp >= _payoutTime){
+            return true;
+        }
+        return false;
+    }
+
+    /**
+    * @dev Get total token Sold.
+    * @return uint256 total token sold.
+    */
     function _getTotalTokenSold() internal view returns(uint256){
         uint256 totalSold = 0;
         for(uint256 i = 0; i < _holderAddresses.length; i++){         
