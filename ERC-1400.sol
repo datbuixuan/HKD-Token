@@ -436,7 +436,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
     uint256 internal _payoutTime;
     // ERC 20 token will payout
     address internal _payoutToken;
-    // Payout rate when redeem. Greater than or equal to 100.  
+    // Payout rate when redeem. percent ether convert to wei (100 * 10 ** 18 (wei)).  
     uint256 internal _payoutRate;
 
 
@@ -597,22 +597,14 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
         } else {
             uint256 fromBalance = _balances[from];
             require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
-            unchecked {
-                // Overflow not possible: amount <= fromBalance <= totalSupply.
-                _balances[from] = fromBalance - amount;
-            }
+            
+            _balances[from] = fromBalance - amount;          
         }
 
         if (to == address(0)) {
-            unchecked {
-                // Overflow not possible: amount <= totalSupply or amount <= fromBalance <= totalSupply.
-                _totalSupply -= amount;
-            }
+            _totalSupply -= amount;
         } else {
-            unchecked {
-                // Overflow not possible: balance + amount is at most totalSupply, which we know fits into a uint256.
-                _balances[to] += amount;
-            }
+            _balances[to] += amount;
         }
 
         emit Transfer(from, to, amount);
@@ -654,7 +646,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
      * Might emit an {Approval} event.
      */
     function _checkAndSpendAllowance(address owner, address spender, uint256 value) internal virtual {
-        require( _isOperator(spender, owner) || (value <= _allowances[owner][spender]), "53"); // 0x53	insufficient allowance
+        require(_isOperator(spender, owner) || (value <= _allowances[owner][spender]), "53"); // 0x53	insufficient allowance
 
         if(_allowances[owner][spender] >= value) {
             _allowances[owner][spender] = _allowances[owner][spender] - value;
@@ -781,7 +773,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
     * @return A boolean that indicates if the operation was successful.
     */
     function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {        
-        _checkAndSpendAllowance(msg.sender, from, amount);
+        _checkAndSpendAllowance(from, msg.sender, amount);
 
         _transferByDefaultPartitions(msg.sender, from, to, amount, "");
         return true;
@@ -808,7 +800,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
     * @param data Information attached to the transfer, and intended for the token holder ('from').
     */
     function transferFromWithData(address from, address to, uint256 value, bytes calldata data) external override virtual {
-        _checkAndSpendAllowance(msg.sender, from, value);
+        _checkAndSpendAllowance(from, msg.sender, value);
 
         _transferByDefaultPartitions(msg.sender, from, to, value, data);
     }
@@ -827,6 +819,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
     }
 
     /**
+    // checked
     * @dev Transfer tokens from a specific partition through an operator.
     * @param partition Name of the partition.
     * @param from Token holder.
@@ -854,7 +847,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
     * @param value Number of tokens to transfer.
     * @param data Information attached to the transfer, and intended for the token holder ('from') [CAN CONTAIN THE DESTINATION PARTITION].
     */
-    function _transferByDefaultPartitions(address operator, address from,  address to, uint256 value, bytes memory data) internal {
+    function _transferByDefaultPartitions(address operator, address from, address to, uint256 value, bytes memory data) internal {
         require(_defaultPartitions.length != 0, "55"); // // 0x55	funds locked (lockup period)
 
         uint256 _remainingValue = value;
@@ -1213,7 +1206,13 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
 
 
     //Payout setting
-
+    /**
+    * @dev Set payout setting.
+    * @param payoutAddress of payout.
+    * @param payoutTime Payout time.
+    * @param payoutToken Payout Token.
+    * @param payoutRate payout Rate (1 * 10 ** 18).
+    */
     function setPayoutSetting(address payoutAddress, uint256 payoutTime, address payoutToken, uint256 payoutRate) external onlyOwner{
         _payoutAddress = payoutAddress;
         _payoutTime = payoutTime;
@@ -1251,7 +1250,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
     /**
     // checked
     * @dev Get payout rate.
-    * @return payoutRate.
+    * @return payoutRate * 10 ** 18.
     */
     function getPayoutRate() external view returns (uint256){
         return _payoutRate;
@@ -1281,8 +1280,8 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
 
     /**
     // checked
-    * @dev Set payout rate (Greate than or equal to 100).
-    * @param payoutRate rate when redeem Token (Greate than or equal to 100).
+    * @dev Set payout rate. percent ether convert to wei (100 * 10 ** 18).
+    * @param payoutRate rate when redeem Token (100 * 10 ** 18).
     */
     function setPayoutRate(uint256 payoutRate) external onlyOwner{
         _payoutRate = payoutRate;       
@@ -1625,7 +1624,7 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
         require(_payoutRate > 0, "59"); // 0x59   invalid data
 
 
-        uint256 payoutValue = value * _payoutRate / 100;
+        uint256 payoutValue = value * _payoutRate / (100 *  10 ** 18);
 
         IERC20 payoutContract = IERC20(_payoutToken);
 
@@ -1656,29 +1655,33 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
 
     /**
     * @dev Get total amount need to pay.
+    * @param payoutRate Payout rate. Percent convert from Ether to wei (100 * 10 ** 18).
     * @return uint256  total amount will pay.
     */
     function getTotalPayout(uint256 payoutRate) external view returns (uint256){
         uint256 totalTokenSold = _getTotalTokenSold();
-        return totalTokenSold * payoutRate / 100;
-    }
+        return totalTokenSold * payoutRate / (100 * 10 ** 18);
+    }                     
 
     /**
     * @dev Get payout for holder
+    * @param holder. 
+    * @param payoutRate Payout rate. Percent convert from Ether to wei (100 * 10 ** 18).
     * @return uint256 total amount will pay.
     */
     function getPayoutForHolder(address holder, uint256 payoutRate) external view returns (uint256){
         uint256 balance = balanceOf(holder);
-        return balance * payoutRate / 100;
+        return balance * payoutRate / (100 * 10 ** 18);
     }
 
     /**
     * @dev Check valid balance need to pay.
+    * @param payoutRate Payout rate. Percent convert from Ether to wei (100 * 10 ** 18).
     * @return bool of status.
     */
     function checkValidBalancePayout(uint256 payoutRate) external view returns (bool){
         uint256 totalTokenSold = _getTotalTokenSold();
-        uint256 payoutValue = totalTokenSold * payoutRate / 100;
+        uint256 payoutValue = totalTokenSold * payoutRate / (100 * 10 ** 18);
 
         uint256 balance = IERC20(_payoutToken).balanceOf(_payoutAddress);
         if(balance >= payoutValue)
@@ -1689,11 +1692,12 @@ contract HKD is IERC1400Upgrate, IERC20, IERC20Metadata, Ownable, MinterRole  {
 
     /**
     * @dev Check valid allowance need to pay.
+    * @param payoutRate Payout rate. Percent convert from Ether to wei (100 * 10 ** 18).
     * @return bool of status.
     */
     function checkValidAllowancePayout(uint256 payoutRate) external view returns (bool){
         uint256 totalTokenSold = _getTotalTokenSold();
-        uint256 payoutValue = totalTokenSold * payoutRate / 100;
+        uint256 payoutValue = totalTokenSold * payoutRate / (100 * 10 ** 18);
 
         uint256 payoutAllowance = IERC20(_payoutToken).allowance(_payoutAddress, address(this));
         if(payoutAllowance >= payoutValue)
