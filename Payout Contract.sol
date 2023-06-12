@@ -204,4 +204,10 @@ contract PayoutContract is Ownable{
 
         tokenContract.approve(spender, amount);
     }
+
+    function getBalance() view public {
+        IERC20 tokenContract = IERC20(_tokenAddress);
+
+        tokenContract.balanceOf(address(this));
+    }
 }
